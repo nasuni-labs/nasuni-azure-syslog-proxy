@@ -1,0 +1,349 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.16.2.56959",
+      "templateHash": "18133152708411757431"
+    }
+  },
+  "parameters": {
+    "vmName": {
+      "type": "string",
+      "defaultValue": "sylogserver",
+      "metadata": {
+        "description": "The name of your Virtual Macine."
+      }
+    },
+    "adminUsername": {
+      "type": "string",
+      "metadata": {
+        "description": "Username for the Virtual Machine."
+      }
+    },
+    "authenticationType": {
+      "type": "string",
+      "defaultValue": "password",
+      "allowedValues": [
+        "sshPublicKey",
+        "password"
+      ],
+      "metadata": {
+        "description": "Type of authentication to use on the Virtual Machine. SSH key is recommended."
+      }
+    },
+    "adminPasswordOrKey": {
+      "type": "securestring",
+      "metadata": {
+        "description": "SSH Key or password for the Virtual Machine. SSH key is recommended."
+      }
+    },
+    "dnsLabelPrefix": {
+      "type": "string",
+      "defaultValue": "[toLower(format('{0}-{1}', parameters('vmName'), uniqueString(resourceGroup().id)))]",
+      "metadata": {
+        "description": "Unique DNS Name for the Public IP used to access the Virtual Machine."
+      }
+    },
+    "rockyOSVersion": {
+      "type": "string",
+      "defaultValue": "8",
+      "allowedValues": [
+        "8"
+      ],
+      "metadata": {
+        "description": "The Rocky Linux version for the VM."
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Location for all resources."
+      }
+    },
+    "vmSize": {
+      "type": "string",
+      "defaultValue": "Standard_B2s",
+      "metadata": {
+        "description": "The size of the VM"
+      }
+    },
+    "virtualNetworkName": {
+      "type": "string",
+      "defaultValue": "vNet",
+      "metadata": {
+        "description": "Name of the VNET"
+      }
+    },
+    "subnetName": {
+      "type": "string",
+      "defaultValue": "Subnet",
+      "metadata": {
+        "description": "Name of the subnet in the virtual network"
+      }
+    },
+    "networkSecurityGroupName": {
+      "type": "string",
+      "defaultValue": "SecGroupNet",
+      "metadata": {
+        "description": "Name of the Network Security Group"
+      }
+    },
+    "securityType": {
+      "type": "string",
+      "defaultValue": "Standard",
+      "allowedValues": [
+        "Standard"
+      ],
+      "metadata": {
+        "description": "Security Type of the Virtual Machine"
+      }
+    },
+    "_artifactsLocation": {
+      "type": "string",
+      "defaultValue": "[deployment().properties.templateLink.uri]",
+      "metadata": {
+        "description": "The base URI where artifacts required by this template are located including a trailing '/'"
+      }
+    },
+    "_artifactsLocationSasToken": {
+      "type": "securestring",
+      "defaultValue": "",
+      "metadata": {
+        "description": "The sasToken required to access _artifactsLocation.  When the template is deployed using the accompanying scripts, a sasToken will be automatically generated. Use the defaultValue if the staging location is not secured."
+      }
+    }
+  },
+  "variables": {
+    "imageReference": {
+      "8": {
+        "publisher": "erockyenterprisesoftwarefoundationinc1653071250513",
+        "offer": "rockylinux",
+        "sku": "free",
+        "version": "latest"
+      }
+    },
+    "publicIPAddressName": "[format('{0}PublicIP', parameters('vmName'))]",
+    "networkInterfaceName": "[format('{0}NetInt', parameters('vmName'))]",
+    "osDiskType": "Standard_LRS",
+    "subnetAddressPrefix": "10.1.0.0/24",
+    "addressPrefix": "10.1.0.0/16",
+    "linuxConfiguration": {
+      "disablePasswordAuthentication": true,
+      "ssh": {
+        "publicKeys": [
+          {
+            "path": "[format('/home/{0}/.ssh/authorized_keys', parameters('adminUsername'))]",
+            "keyData": "[parameters('adminPasswordOrKey')]"
+          }
+        ]
+      }
+    },
+    "securityProfileJson": {
+      "uefiSettings": {
+        "secureBootEnabled": true,
+        "vTpmEnabled": true
+      },
+      "securityType": "[parameters('securityType')]"
+    },
+    "setupScriptURI": "[uri(parameters('_artifactsLocation'), format('scripts/setup.sh{0}', parameters('_artifactsLocationSasToken')))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Network/networkInterfaces",
+      "apiVersion": "2021-05-01",
+      "name": "[variables('networkInterfaceName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig1",
+            "properties": {
+              "subnet": {
+                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworkName'), parameters('subnetName'))]"
+              },
+              "privateIPAllocationMethod": "Dynamic",
+              "publicIPAddress": {
+                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('publicIPAddressName'))]"
+              }
+            }
+          }
+        ],
+        "networkSecurityGroup": {
+          "id": "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('networkSecurityGroupName'))]"
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('networkSecurityGroupName'))]",
+        "[resourceId('Microsoft.Network/publicIPAddresses', variables('publicIPAddressName'))]",
+        "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworkName'), parameters('subnetName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Network/networkSecurityGroups",
+      "apiVersion": "2021-05-01",
+      "name": "[parameters('networkSecurityGroupName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "securityRules": [
+          {
+            "name": "SSH",
+            "properties": {
+              "priority": 1000,
+              "protocol": "Tcp",
+              "access": "Allow",
+              "direction": "Inbound",
+              "sourceAddressPrefix": "*",
+              "sourcePortRange": "*",
+              "destinationAddressPrefix": "*",
+              "destinationPortRange": "22"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Network/virtualNetworks",
+      "apiVersion": "2021-05-01",
+      "name": "[parameters('virtualNetworkName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "[variables('addressPrefix')]"
+          ]
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Network/virtualNetworks/subnets",
+      "apiVersion": "2021-05-01",
+      "name": "[format('{0}/{1}', parameters('virtualNetworkName'), parameters('subnetName'))]",
+      "properties": {
+        "addressPrefix": "[variables('subnetAddressPrefix')]",
+        "privateEndpointNetworkPolicies": "Enabled",
+        "privateLinkServiceNetworkPolicies": "Enabled"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/virtualNetworks', parameters('virtualNetworkName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Network/publicIPAddresses",
+      "apiVersion": "2021-05-01",
+      "name": "[variables('publicIPAddressName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "Basic"
+      },
+      "properties": {
+        "publicIPAllocationMethod": "Dynamic",
+        "publicIPAddressVersion": "IPv4",
+        "dnsSettings": {
+          "domainNameLabel": "[parameters('dnsLabelPrefix')]"
+        },
+        "idleTimeoutInMinutes": 4
+      }
+    },
+    {
+      "type": "Microsoft.Compute/virtualMachines",
+      "apiVersion": "2021-11-01",
+      "name": "[parameters('vmName')]",
+      "location": "[parameters('location')]",
+      "plan": {
+        "name": "free",
+        "product": "rockylinux",
+        "publisher": "erockyenterprisesoftwarefoundationinc1653071250513"
+      },
+      "properties": {
+        "hardwareProfile": {
+          "vmSize": "[parameters('vmSize')]"
+        },
+        "storageProfile": {
+          "osDisk": {
+            "createOption": "FromImage",
+            "managedDisk": {
+              "storageAccountType": "[variables('osDiskType')]"
+            }
+          },
+          "imageReference": "[variables('imageReference')[parameters('rockyOSVersion')]]"
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('networkInterfaceName'))]"
+            }
+          ]
+        },
+        "osProfile": {
+          "computerName": "[parameters('vmName')]",
+          "adminUsername": "[parameters('adminUsername')]",
+          "adminPassword": "[parameters('adminPasswordOrKey')]",
+          "linuxConfiguration": "[if(equals(parameters('authenticationType'), 'password'), null(), variables('linuxConfiguration'))]"
+        },
+        "securityProfile": "[if(equals(parameters('securityType'), 'TrustedLaunch'), variables('securityProfileJson'), null())]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/networkInterfaces', variables('networkInterfaceName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Compute/virtualMachines/extensions",
+      "apiVersion": "2021-11-01",
+      "name": "[format('{0}/{1}', parameters('vmName'), 'AzureMonitorLinuxAgent')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "publisher": "Microsoft.Azure.Monitor",
+        "type": "AzureMonitorLinuxAgent",
+        "typeHandlerVersion": "1.21",
+        "autoUpgradeMinorVersion": true,
+        "enableAutomaticUpgrade": true
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Compute/virtualMachines', parameters('vmName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Compute/virtualMachines/extensions",
+      "apiVersion": "2022-11-01",
+      "name": "[format('{0}/{1}', parameters('vmName'), 'config-app')]",
+      "location": "[parameters('location')]",
+      "tags": {
+        "displayName": "config-app"
+      },
+      "properties": {
+        "publisher": "Microsoft.Azure.Extensions",
+        "type": "CustomScript",
+        "typeHandlerVersion": "2.0",
+        "autoUpgradeMinorVersion": true,
+        "settings": {
+          "fileUris": [
+            "[variables('setupScriptURI')]"
+          ]
+        },
+        "protectedSettings": {
+          "commandToExecute": "[format('sudo sh setup.sh{0} {1}', parameters('_artifactsLocation'), parameters('_artifactsLocationSasToken'))]"
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Compute/virtualMachines', parameters('vmName'))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "adminUsername": {
+      "type": "string",
+      "value": "[parameters('adminUsername')]"
+    },
+    "hostname": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Network/publicIPAddresses', variables('publicIPAddressName')), '2021-05-01').dnsSettings.fqdn]"
+    },
+    "sshCommand": {
+      "type": "string",
+      "value": "[format('ssh {0}@{1}', parameters('adminUsername'), reference(resourceId('Microsoft.Network/publicIPAddresses', variables('publicIPAddressName')), '2021-05-01').dnsSettings.fqdn)]"
+    }
+  }
+}

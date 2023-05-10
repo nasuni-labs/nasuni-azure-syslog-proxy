@@ -1,0 +1,9 @@
+{
+  "$schema": "https://aka.ms/azure-quickstart-templates-metadata-schema#",
+  "itemDisplayName": "Nasuni Syslog/Sentinel proxy",
+  "description": "This template creates and configures a Syslog server with an onboarded Azure Sentinel Agent for a specified workspace.",
+  "summary": "This template creates and configures a Syslog server with an onboarded Azure Sentinel Agent for a specified workspace.",
+  "githubUsername": "",
+  "dateUpdated": "2023-04-24",
+  "type": "QuickStart"
+}
