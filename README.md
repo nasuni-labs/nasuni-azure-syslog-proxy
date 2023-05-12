@@ -28,6 +28,6 @@ If you prefer to run the syslog proxy VM in your own datacenter, you can deploy 
 ## Deployment Tasks
 1. Install a Linux VM
 2. Configure syslog. Microsoft provides a [Python script](https://github.com/Azure/Azure-Sentinel/tree/master/DataConnectors/Syslog) that can configure rsyslogd or syslog-ng
-3. Configure the Linux VM for [Azure Arc](https://learn.microsoft.com/en-us/azure/cloud-adoption-framework/manage/hybrid/server/best-practices/onboard-server-linux)
+3. Configure the Linux VM for [Azure Arc](https://learn.microsoft.com/en-us/azure/azure-arc/servers/onboard-portal)
 4. Install the [Azure Monitor Agent](https://learn.microsoft.com/en-us/azure/azure-monitor/agents/azure-monitor-agent-manage?tabs=azure-portal) 
 5. Complete the Post-Deployment Tasks above
