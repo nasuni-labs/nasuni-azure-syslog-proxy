@@ -1,16 +1,17 @@
-param location string = 'eastus'
+//param location string = 'eastus'
 param vmName string = 'NasuniSyslogProxy'
 param adminUsername string = 'adminuser'
 @secure()
 param adminPassword string
 param existingWorkspaceName string
 param existingVnet string
+param location string
 
 var lawID = resourceId('Microsoft.OperationalInsights/workspaces', existingWorkspaceName)
 //var existingVnetID = resourceId('Microsoft.Network/virtualNetworks', existingVnet)
 
-resource myPublicIp 'Microsoft.Network/publicIPAddresses@2023-02-01' = {
-  name: 'myPublicIp'
+resource syslogProxyPubIP 'Microsoft.Network/publicIPAddresses@2023-02-01' = {
+  name: 'syslogProxyPubIP'
   location: location
   properties: {
     publicIPAddressVersion: 'IPv4'
@@ -18,8 +19,8 @@ resource myPublicIp 'Microsoft.Network/publicIPAddresses@2023-02-01' = {
   }
 }
 
-resource myNsg 'Microsoft.Network/networkSecurityGroups@2021-02-01' = {
-  name: 'myNsg'
+resource syslogProxyNSG 'Microsoft.Network/networkSecurityGroups@2021-02-01' = {
+  name: 'syslogProxyNSG'
   location: location
   properties: {
     securityRules: [
@@ -67,16 +68,16 @@ resource myNsg 'Microsoft.Network/networkSecurityGroups@2021-02-01' = {
   }
 }
 
-resource myNic 'Microsoft.Network/networkInterfaces@2022-11-01' = {
-  name: 'myNic'
+resource syslogProxyNIC 'Microsoft.Network/networkInterfaces@2022-11-01' = {
+  name: 'syslogProxyNIC'
   location: location
   dependsOn: [
-    myPublicIp
-    myNsg
+    syslogProxyPubIP
+    syslogProxyNSG
   ]
   properties: {
     networkSecurityGroup: {
-      id: myNsg.id
+      id: syslogProxyNSG.id
     }
     ipConfigurations: [
       {
@@ -86,7 +87,7 @@ resource myNic 'Microsoft.Network/networkInterfaces@2022-11-01' = {
             id: resourceId('Microsoft.Network/virtualNetworks/subnets', existingVnet, 'default')
           }
           publicIPAddress: {
-            id: myPublicIp.id
+            id: syslogProxyPubIP.id
           }
         }
       }
@@ -94,14 +95,14 @@ resource myNic 'Microsoft.Network/networkInterfaces@2022-11-01' = {
   }
 }
 
-resource myVm 'Microsoft.Compute/virtualMachines@2023-03-01' = {
+resource syslogProxyVM 'Microsoft.Compute/virtualMachines@2023-03-01' = {
   name: vmName
   location: location
   identity: {
     type: 'SystemAssigned'
   }
   dependsOn: [
-    myNic
+    syslogProxyNIC
   ]
   properties: {
     hardwareProfile: {
@@ -129,7 +130,7 @@ resource myVm 'Microsoft.Compute/virtualMachines@2023-03-01' = {
     networkProfile: {
       networkInterfaces: [
         {
-          id: myNic.id
+          id: syslogProxyNIC.id
         }
       ]
     }
@@ -139,22 +140,22 @@ resource myVm 'Microsoft.Compute/virtualMachines@2023-03-01' = {
 resource roleAssignment 'Microsoft.Authorization/roleAssignments@2020-04-01-preview' = {
   name: guid(resourceGroup().id, vmName, 'Monitoring Metrics Publisher', '123456')
   dependsOn: [
-    myVm
+    syslogProxyVM
   ]
   properties: {
     roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', '3913510d-42f4-4e42-8a64-420c390055eb')
-    principalId: myVm.identity.principalId
+    principalId: syslogProxyVM.identity.principalId
     principalType: 'ServicePrincipal'
   }
-  scope: myVm
+  scope: syslogProxyVM
 }
 
 // Deploy Azure Monitor Agent extension on the Virtual Machine
 resource amaExtension 'Microsoft.Compute/virtualMachines/extensions@2021-07-01' = {
-  name: '${myVm.name}/AzureMonitorLinuxAgent'
+  name: '${syslogProxyVM.name}/AzureMonitorLinuxAgent'
   location: location
   dependsOn: [
-    myVm
+    syslogProxyVM
   ]
   properties: {
     publisher: 'Microsoft.Azure.Monitor'
@@ -206,22 +207,22 @@ resource dataCollectionRule 'Microsoft.Insights/dataCollectionRules@2021-09-01-p
 }
 
 resource dataCollectionRuleAssociation 'Microsoft.Insights/dataCollectionRuleAssociations@2021-09-01-preview' = {
-  name: '${myVm.name}-SyslogDataCollectionRuleAssociation'
+  name: '${syslogProxyVM.name}-SyslogDataCollectionRuleAssociation'
   location: location
   dependsOn: [
-    myVm
+    syslogProxyVM
   ]
   properties: {
     dataCollectionRuleId: dataCollectionRule.id
   }
-  scope: myVm
+  scope: syslogProxyVM
 }
 
 resource customScriptExtension 'Microsoft.Compute/virtualMachines/extensions@2021-07-01' = {
-  name: '${myVm.name}/CustomScriptExtension'
+  name: '${syslogProxyVM.name}/CustomScriptExtension'
   location: location
   dependsOn: [
-    myVm
+    syslogProxyVM
   ]
   properties: {
     publisher: 'Microsoft.Azure.Extensions'
