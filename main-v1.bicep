@@ -1,4 +1,3 @@
-//param location string = 'eastus'
 param vmName string = 'NasuniSyslogProxy'
 param adminUsername string = 'adminuser'
 @secure()
@@ -8,16 +7,6 @@ param existingVnet string
 param location string
 
 var lawID = resourceId('Microsoft.OperationalInsights/workspaces', existingWorkspaceName)
-//var existingVnetID = resourceId('Microsoft.Network/virtualNetworks', existingVnet)
-
-resource syslogProxyPubIP 'Microsoft.Network/publicIPAddresses@2023-02-01' = {
-  name: 'syslogProxyPubIP'
-  location: location
-  properties: {
-    publicIPAddressVersion: 'IPv4'
-    publicIPAllocationMethod: 'Dynamic'
-  }
-}
 
 resource syslogProxyNSG 'Microsoft.Network/networkSecurityGroups@2021-02-01' = {
   name: 'syslogProxyNSG'
@@ -72,7 +61,6 @@ resource syslogProxyNIC 'Microsoft.Network/networkInterfaces@2022-11-01' = {
   name: 'syslogProxyNIC'
   location: location
   dependsOn: [
-    syslogProxyPubIP
     syslogProxyNSG
   ]
   properties: {
@@ -85,9 +73,6 @@ resource syslogProxyNIC 'Microsoft.Network/networkInterfaces@2022-11-01' = {
         properties: {
           subnet: {
             id: resourceId('Microsoft.Network/virtualNetworks/subnets', existingVnet, 'default')
-          }
-          publicIPAddress: {
-            id: syslogProxyPubIP.id
           }
         }
       }
