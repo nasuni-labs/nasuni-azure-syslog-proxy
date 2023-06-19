@@ -1,8 +1,8 @@
 @description('The name of your Virtual Macine.')
-param vmName string = 'sylogserver'
+param vmName string = 'NasuniSyslogProxy'
 
 @description('Username for the Virtual Machine.')
-param adminUsername string
+param adminUsername string = 'adminuser'
 
 @description('Type of authentication to use on the Virtual Machine. SSH key is recommended.')
 @allowed([
@@ -15,49 +15,18 @@ param authenticationType string = 'password'
 @secure()
 param adminPasswordOrKey string
 
-@description('Unique DNS Name for the Public IP used to access the Virtual Machine.')
-param dnsLabelPrefix string = toLower('${vmName}-${uniqueString(resourceGroup().id)}')
+@description('Enter the name of the existing Log Analytics workspace where Syslog messages will be sent.')
+param existingWorkspaceName string
 
-@description('The Rocky Linux version for the VM.')
-@allowed([
-  '8'
-])
-param rockyOSVersion string = '8'
+@description('Enter the name of an existing Vnet where the resources will be deployed.')
+param existingVnet string
 
 @description('Location for all resources.')
-param location string = resourceGroup().location
+param location string
 
 @description('The size of the VM')
-param vmSize string = 'Standard_B2s'
+param vmSize string = 'Standard_DS1_v2'
 
-@description('Name of the VNET')
-param virtualNetworkName string = 'vNet'
-
-@description('Name of the subnet in the virtual network')
-param subnetName string = 'Subnet'
-
-@description('Name of the Network Security Group')
-param networkSecurityGroupName string = 'SecGroupNet'
-
-@description('Security Type of the Virtual Machine')
-@allowed([
-  'Standard'
-])
-param securityType string = 'Standard'
-
-var imageReference = {
-  '8':{
-    publisher: 'erockyenterprisesoftwarefoundationinc1653071250513'
-    offer: 'rockylinux'
-    sku: 'free'
-    version: 'latest'
-  }
-}
-var publicIPAddressName = '${vmName}PublicIP'
-var networkInterfaceName = '${vmName}NetInt'
-var osDiskType = 'Standard_LRS'
-var subnetAddressPrefix = '10.1.0.0/24'
-var addressPrefix = '10.1.0.0/16'
 var linuxConfiguration = {
   disablePasswordAuthentication: true
   ssh:{
@@ -69,125 +38,112 @@ var linuxConfiguration = {
     ]
   }
 }
-var securityProfileJson = {
-  uefiSettings: {
-    secureBootEnabled: true
-    vTpmEnabled: true
-  }
-  securityType: securityType
-}
 
-resource networkInterface 'Microsoft.Network/networkInterfaces@2021-05-01' = {
-  name: networkInterfaceName
+var lawID = resourceId('Microsoft.OperationalInsights/workspaces', existingWorkspaceName)
+
+/*resource syslogProxyPubIP 'Microsoft.Network/publicIPAddresses@2022-07-01' = {
+  name: 'syslogProxyPubIP'
   location: location
   properties: {
-    ipConfigurations: [
-      {
-        name: 'ipconfig1'
-        properties: {
-          subnet: {
-            id: subnet.id
-          }
-          privateIPAllocationMethod: 'Dynamic'
-          publicIPAddress: {
-            id: publicIPAddress.id
-          }
-        }
-      }
-    ]
-    networkSecurityGroup: {
-      id: networkSecurityGroup.id
-    }
+    publicIPAddressVersion: 'IPv4'
+    publicIPAllocationMethod: 'Dynamic'
   }
-}
+}*/
 
-resource networkSecurityGroup 'Microsoft.Network/networkSecurityGroups@2021-05-01' = {
-  name: networkSecurityGroupName
+resource syslogProxyNSG 'Microsoft.Network/networkSecurityGroups@2021-02-01' = {
+  name: 'syslogProxyNSG'
   location: location
   properties: {
     securityRules: [
       {
-        name: 'SSH'
+        name: 'allowTcp514'
         properties: {
-          priority: 1000
+          priority: 120
           protocol: 'Tcp'
           access: 'Allow'
           direction: 'Inbound'
           sourceAddressPrefix: '*'
           sourcePortRange: '*'
           destinationAddressPrefix: '*'
+          destinationPortRange: '514'
+        }
+      }
+      {
+        name: 'allowUdp514'
+        properties: {
+          priority: 110
+          protocol: 'Udp'
+          access: 'Allow'
+          direction: 'Inbound'
+          sourceAddressPrefix: '*'
+          sourcePortRange: '*'
+          destinationAddressPrefix: '*'
+          destinationPortRange: '514'
+        }
+      }
+      
+      {
+        name: 'SSH'
+        properties: {
+          protocol: 'Tcp'
+          sourcePortRange: '*'
           destinationPortRange: '22'
+          sourceAddressPrefix: '*'
+          destinationAddressPrefix: '*'
+          access: 'Allow'
+          priority: 100
+          direction: 'Inbound'
         }
       }
     ]
   }
 }
 
-resource virtualNetwork 'Microsoft.Network/virtualNetworks@2021-05-01' = {
-  name: virtualNetworkName
+resource syslogProxyNIC 'Microsoft.Network/networkInterfaces@2022-11-01' = {
+  name: 'syslogProxyNIC'
   location: location
   properties: {
-    addressSpace: {
-      addressPrefixes: [
-        addressPrefix
-      ]
+    networkSecurityGroup: {
+      id: syslogProxyNSG.id
     }
+    ipConfigurations: [
+      {
+        name: 'ipconfig'
+        properties: {
+          subnet: {
+            id: resourceId('Microsoft.Network/virtualNetworks/subnets', existingVnet, 'default')
+          }
+          /*
+          publicIPAddress: {
+            id: syslogProxyPubIP.id
+          }
+          */
+        }
+      }
+    ]
   }
 }
 
-resource subnet 'Microsoft.Network/virtualNetworks/subnets@2021-05-01' = {
-  parent: virtualNetwork
-  name: subnetName
-  properties: {
-    addressPrefix: subnetAddressPrefix
-    privateEndpointNetworkPolicies: 'Enabled'
-    privateLinkServiceNetworkPolicies: 'Enabled'
-  }
-}
-
-resource publicIPAddress 'Microsoft.Network/publicIPAddresses@2021-05-01' = {
-  name: publicIPAddressName
+resource syslogProxyVM 'Microsoft.Compute/virtualMachines@2023-03-01' = {
+  name: vmName
   location: location
-  sku: {
-    name: 'Basic'
-  }
-  properties: {
-    publicIPAllocationMethod: 'Dynamic'
-    publicIPAddressVersion: 'IPv4'
-    dnsSettings: {
-      domainNameLabel: dnsLabelPrefix
-    }
-    idleTimeoutInMinutes: 4
-  }
-}
-
-resource vm 'Microsoft.Compute/virtualMachines@2021-11-01' = {
-  name:vmName
-  location: location
-  plan: {
-    name: 'free'
-    product: 'rockylinux'
-    publisher: 'erockyenterprisesoftwarefoundationinc1653071250513'
+  identity: {
+    type: 'SystemAssigned'
   }
   properties: {
     hardwareProfile: {
       vmSize: vmSize
     }
     storageProfile: {
-      osDisk: {
-        createOption: 'FromImage'
-        managedDisk: {
-          storageAccountType: osDiskType
-        }
+      imageReference: {
+        publisher: 'Canonical'
+        offer: '0001-com-ubuntu-server-jammy'
+        sku: '22_04-lts-gen2'
+        version: 'latest'
       }
-      imageReference: imageReference[rockyOSVersion]
-    }
-    networkProfile: {
-      networkInterfaces: [
-        {
-          id: networkInterface.id
-        }
-      ]
+      osDisk: {
+        createOption: 'fromImage'
+      }
     }
     osProfile: {
       computerName: vmName
@@ -195,41 +151,102 @@ resource vm 'Microsoft.Compute/virtualMachines@2021-11-01' = {
       adminPassword: adminPasswordOrKey
       linuxConfiguration: ((authenticationType == 'password') ? null : linuxConfiguration)
     }
-    securityProfile: ((securityType == 'TrustedLaunch') ? securityProfileJson : null)
+    networkProfile: {
+      networkInterfaces: [
+        {
+          id: syslogProxyNIC.id
+        }
+      ]
+    }
   }
 }
 
-resource linuxAgent 'Microsoft.Compute/virtualMachines/extensions@2021-11-01' = {
-  parent: vm
+resource roleAssignment 'Microsoft.Authorization/roleAssignments@2020-04-01-preview' = {
+  name: guid(resourceGroup().id, vmName, 'Monitoring Metrics Publisher', '123456')
+  properties: {
+    roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', '3913510d-42f4-4e42-8a64-420c390055eb')
+    principalId: syslogProxyVM.identity.principalId
+    principalType: 'ServicePrincipal'
+  }
+  scope: syslogProxyVM
+}
+
+// Deploy Azure Monitor Agent extension on the Virtual Machine
+resource amaExtension 'Microsoft.Compute/virtualMachines/extensions@2021-07-01' = {
+  parent: syslogProxyVM
   name: 'AzureMonitorLinuxAgent'
   location: location
   properties: {
     publisher: 'Microsoft.Azure.Monitor'
     type: 'AzureMonitorLinuxAgent'
-    typeHandlerVersion: '1.21'
+    typeHandlerVersion: '1.0'
     autoUpgradeMinorVersion: true
-    enableAutomaticUpgrade: true
-  }
-}
-
-resource config_app 'Microsoft.Compute/virtualMachines/extensions@2022-11-01' = {
-  parent: vm
-  name: 'config-app'
-  location: location
-  tags: {
-    displayName: 'config-app'
-  }
-  properties:{
-    publisher: 'Microsoft.Azure.Extensions'
-    type: 'CustomScript'
-    typeHandlerVersion: '2.0'
-    autoUpgradeMinorVersion: true
-    protectedSettings: {
-      script: 'H4sIAAAAAAACA7WRT0/CQBDF7/0U49ZaINKRRI9oOBg9iBjwSExKdyhr2p3N7tSEb+/yL0ZPXLzNy8z7zUteeoErYzFsEqo2DGpBIsbW0Dnw1LIQNFxDxXZt6s6XYtjCmj34sA1xoxLnjZU15JdCrWvKaJjvfS9ch2uFX6XHeIcH2DCOAbPsebZ4f51MH7Msirf57Gk+mR50sYMu7aAYPPxwlvYKgrBb5nAPSFLh8X2hcXQzPLCLXcgkCaQhx7Rl3TXUa7jUY2XaTjvVhxQskQ4gDCsCzZbgswsCbCvCgB8pYg5D8/vFHnukGus66cnW0QkKjr2M1d3oVvXPQvwJJtU/BNtBzw+WRBHLq6SJlQcpvZza/QYeuB3XHQIAAA=='
+    settings: {
+      workspaceID: lawID
     }
   }
 }
 
-output adminUsername string = adminUsername
-output hostname string = publicIPAddress.properties.dnsSettings.fqdn
-output sshCommand string = 'ssh ${adminUsername}@${publicIPAddress.properties.dnsSettings.fqdn}'
+resource dataCollectionRule 'Microsoft.Insights/dataCollectionRules@2021-09-01-preview' = {
+  name: 'SyslogDataCollectionRule'
+  location: location
+  properties: {
+    dataSources: {
+      syslog: [
+        {
+          name: 'SyslogDataSource'
+          logLevels: ['Info']
+          facilityNames: ['auth','authpriv','cron','daemon','kern','lpr','mail','mark','news','syslog','user','uucp','local0','local1','local2','local3','local4','local5','local6','local7']
+          streams: [
+            'Microsoft-Syslog'
+          ]
+        }
+      ]
+    }
+    destinations: {
+      logAnalytics: [
+        {
+          name: 'LogAnalyticsDestination'
+          workspaceResourceId: lawID
+        }
+      ]
+    }
+    dataFlows: [
+      {
+        outputStream: 'Microsoft-Syslog'
+        destinations: [
+          'LogAnalyticsDestination'
+        ]
+        streams: [
+          'Microsoft-Syslog'
+        ]
+      }
+    ]
+  }
+}
+
+resource dataCollectionRuleAssociation 'Microsoft.Insights/dataCollectionRuleAssociations@2021-09-01-preview' = {
+  name: '${syslogProxyVM.name}-SyslogDataCollectionRuleAssociation'
+  properties: {
+    dataCollectionRuleId: dataCollectionRule.id
+  }
+  scope: syslogProxyVM
+}
+
+resource customScriptExtension 'Microsoft.Compute/virtualMachines/extensions@2021-07-01' = {
+  parent: syslogProxyVM
+  name: 'CustomScriptExtension'
+  location: location
+  properties: {
+    publisher: 'Microsoft.Azure.Extensions'
+    type: 'CustomScript'
+    typeHandlerVersion: '2.1'
+    autoUpgradeMinorVersion: true
+    settings: {
+      fileUris: [
+        'https://raw.githubusercontent.com/Azure/Azure-Sentinel/master/DataConnectors/Syslog/Forwarder_AMA_installer.py'
+      ]
+      commandToExecute: 'sudo apt-get update && sudo apt-get install -y python3 && sudo python3 Forwarder_AMA_installer.py'
+    }
+  }
+}
