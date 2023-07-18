@@ -1,4 +1,4 @@
-[![Deploy to Azure](https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/1-CONTRIBUTION-GUIDE/images/deploytoazure.svg?sanitize=true)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fmdriscoll-nasuni%2Fnasuni-syslog-proxy%2Fmaster%2Fmain.json%3Ftoken%3DGHSAT0AAAAAACBVUMC7TADGUCHP3R6EZRQUZCGUDEA)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fnasuni-labs%2Fnasuni-azure-syslog-proxy%2Fmain%2Fmain.json)
 
 # Syslog Proxy
 This template can be used to deploy a Linux VM in Azure that will act as a syslog proxy for the Nasuni platform. It will forward Notifications or file system audit events to a Log Analytics workspace. The logs can be manually examined or consumed by other services including Microsoft Sentinel.
