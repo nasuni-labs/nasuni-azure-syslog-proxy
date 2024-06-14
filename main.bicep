@@ -196,7 +196,7 @@ resource dataCollectionRule 'Microsoft.Insights/dataCollectionRules@2021-09-01-p
         {
           name: 'SyslogDataSource'
           logLevels: ['Info']
-          facilityNames: ['auth','authpriv','cron','daemon','kern','lpr','mail','mark','news','syslog','user','uucp','local0','local1','local2','local3','local4','local5','local6','local7']
+          facilityNames: ['alert','auth','authpriv','cron','daemon','kern','lpr','mail','mark','news','syslog','user','uucp','local0','local1','local2','local3','local4','local5','local6','local7']
           streams: [
             'Microsoft-Syslog'
           ]

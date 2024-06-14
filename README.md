@@ -19,9 +19,9 @@ This template can be used to deploy a Linux VM in Azure that will act as a syslo
 
 # Post-Deployment Tasks
 ## Syslog Export Configuration
-Configure your Nasuni appliances to send Notifications and/or file system audit events via syslog to the proxy VM. Consult the "Syslog Export" section of the [Nasuni Management Console Guide](http://b.link/Nasuni_NMC_Guide) for configuration instructions.
+Configure your Nasuni appliances to send Notifications and/or file system audit events via syslog to the proxy VM. Consult the "Syslog Export" section of the [Nasuni Management Console Guide](https://community.nasuni.com/s/documentation) for configuration instructions.
 ## Auditing Policy Configuration
-Configure the audit policy for each volume for which you would like to collect events. Consult the "File System Auditing" secton of the [Nasuni Management Console Guide](http://b.link/Nasuni_NMC_Guide) for configuration instructions.
+Configure the audit policy for each volume for which you would like to collect events. Consult the "File System Auditing" secton of the [Nasuni Management Console Guide](https://community.nasuni.com/s/documentation) for configuration instructions.
 
 # On-premises Alternative
 If you prefer to run the syslog proxy VM in your own datacenter, you can deploy a Linux VM and install the Azure Monitor agent on it. For on-prem installations, the Azure Monitor agent requires that the server be managed with Azure Arc.
