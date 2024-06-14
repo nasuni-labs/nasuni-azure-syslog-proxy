@@ -4,8 +4,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.18.4.5664",
-      "templateHash": "13450124197667927398"
+      "version": "0.28.1.47646",
+      "templateHash": "9997547620368087948"
     }
   },
   "parameters": {
@@ -241,6 +241,7 @@
                 "Info"
               ],
               "facilityNames": [
+                "alert",
                 "auth",
                 "authpriv",
                 "cron",
